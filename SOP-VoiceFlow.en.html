@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SOP — VoiceFlow · Local voice assistant with Whisper + Gemini</title>
+<style>
+  :root {
+    --green: #054129;
+    --orange: #F68840;
+    --bg: #fefdfb;
+    --ink: #1a1a1a;
+    --muted: #666;
+    --border: #e5e2dc;
+    --code-bg: #f6f4ef;
+  }
+  body {
+    font-family: 'Comfortaa', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.6;
+    max-width: 900px; margin: 0 auto; padding: 2.5rem 1.5rem;
+  }
+  h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; color: var(--green); }
+  h1 { font-size: 2.4rem; margin-bottom: .25rem; border-bottom: 3px solid var(--orange); padding-bottom: .5rem; }
+  h2 { font-size: 1.6rem; margin-top: 2.5rem; }
+  h3 { font-size: 1.2rem; margin-top: 1.5rem; color: var(--ink); }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+  .meta strong { color: var(--green); }
+  code, pre {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    background: var(--code-bg); border-radius: 4px;
+  }
+  code { padding: .15rem .4rem; font-size: .9em; }
+  pre { padding: 1rem; overflow-x: auto; border-left: 3px solid var(--orange); }
+  pre code { padding: 0; background: none; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { padding: .6rem .8rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--green); color: white; font-weight: 600; }
+  tr:nth-child(even) { background: #faf8f3; }
+  .toc { background: #faf8f3; padding: 1.2rem 1.5rem; border-radius: 8px; margin-bottom: 2rem; }
+  .toc h3 { margin-top: 0; }
+  .toc a { color: var(--green); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ul { margin: 0; padding-left: 1.2rem; }
+  .badge { display: inline-block; padding: .15rem .6rem; border-radius: 12px; font-size: .75rem; font-weight: 600; margin-left: .5rem; }
+  .badge-ok { background: #d4edda; color: #155724; }
+  .badge-todo { background: #fff3cd; color: #856404; }
+  .key { display: inline-block; background: white; border: 1px solid #ccc; border-radius: 4px; padding: .1rem .4rem; font-family: monospace; font-size: .85em; box-shadow: 0 1px 0 #ccc; }
+  .callout { background: #fff8ee; border-left: 4px solid var(--orange); padding: .8rem 1rem; margin: 1rem 0; border-radius: 4px; }
+  .callout-warn { background: #fff5f5; border-left-color: #dc3545; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+</style>
+</head>
+<body>
+
+<h1>SOP — VoiceFlow</h1>
+<div class="meta">
+  🌍 <strong>English</strong> · <a href="./SOP-VoiceFlow.html" style="color:var(--green);">Español</a> &nbsp;|&nbsp;
+  <strong>Author:</strong> Carlos Alcalá &nbsp;·&nbsp;
+  <strong>Version:</strong> 1.0 &nbsp;·&nbsp;
+  <strong>Date:</strong> May 10, 2026 &nbsp;·&nbsp;
+  <strong>Stack:</strong> Whisper local + Gemini 2.5 Flash + Python + AppleScript
+</div>
+
+<div class="callout">
+  <strong>What VoiceFlow is.</strong> A local, agentic alternative to Wispr Flow.
+  Push-to-talk for macOS that (1) dictates with AI formatting, (2) executes
+  actions (email, WhatsApp, calendar, etc.) and (3) replaces selected text with
+  voice transformations. Built in one afternoon with Claude Code.
+  <strong>Cost:</strong> ~$0/month (Gemini free tier covers personal use).
+</div>
+
+<div class="toc">
+  <h3>Index</h3>
+  <ul>
+    <li><a href="#architecture">1. Architecture</a></li>
+    <li><a href="#installation">2. Installation and key files</a></li>
+    <li><a href="#shortcuts">3. Keyboard shortcuts</a></li>
+    <li><a href="#features">4. Features</a></li>
+    <li><a href="#tools">5. Agentic tools</a></li>
+    <li><a href="#custom">6. Customization (dictionary + snippets)</a></li>
+    <li><a href="#operate">7. Operating the service</a></li>
+    <li><a href="#trouble">8. Troubleshooting</a></li>
+    <li><a href="#roadmap">9. Roadmap</a></li>
+  </ul>
+</div>
+
+<h2 id="architecture">1. Architecture</h2>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│  Right Option key (push-to-talk)                            │
+│         ↓                                                    │
+│  sounddevice records audio (while held)                     │
+│         ↓ on release                                         │
+│  Local Whisper "base"  ──> transcribe (ES/EN/mix auto)      │
+│         ↓ text                                               │
+│  ┌─ Exact snippet? ──> paste snippet, END                   │
+│  └─ NO                                                       │
+│         ↓                                                    │
+│  Gemini 2.5 Flash with function calling (8 tools)           │
+│         ↓                                                    │
+│  ┌─ paste_text         → Cmd+V at cursor                    │
+│  ├─ open_app/close_app → `open -a` / AppleScript quit       │
+│  ├─ search_web         → Chrome + google.com/search         │
+│  ├─ compose_email      → Gmail Web with draft               │
+│  ├─ send_whatsapp      → whatsapp:// URL scheme             │
+│  ├─ create_calendar    → Google Calendar URL                │
+│  └─ create_reminder    → AppleScript to Reminders.app       │
+└─────────────────────────────────────────────────────────────┘
+REPLACE mode: ⌥ + ⌘ → Cmd+C → selection + instruction → Gemini → Cmd+V</code></pre>
+
+<h3>Components</h3>
+<table>
+  <tr><th>Component</th><th>Role</th><th>Cost</th></tr>
+  <tr><td>Whisper (<code>base</code> model, local)</td><td>Speech-to-text</td><td>Free · offline · ~74MB RAM</td></tr>
+  <tr><td>Gemini 2.5 Flash (API)</td><td>Routing + formatting + transformations</td><td>Free tier: 1,500 req/day</td></tr>
+  <tr><td>pynput</td><td>Global hotkey + keyboard simulation</td><td>Free</td></tr>
+  <tr><td>sounddevice</td><td>Audio capture in RAM</td><td>Free</td></tr>
+  <tr><td>pyobjc (ApplicationServices)</td><td>Triggers TCC Accessibility dialog</td><td>Free</td></tr>
+  <tr><td>VoiceFlow.app (AppleScript wrapper)</td><td>Auto-start + responsible process for TCC</td><td>Free</td></tr>
+</table>
+
+<h2 id="installation">2. Installation and key files</h2>
+
+<h3>Layout</h3>
+<pre><code>~/voice-flow/
+├── VoiceFlow.app                   # Signed wrapper for auto-start + TCC
+├── voiceflow.py                    # Main script
+├── run.sh                          # Launcher (loads env + venv)
+├── dictionary.json                 # Personal vocabulary
+├── snippets.json                   # Voice shortcuts
+├── voiceflow.log / .err.log        # Logs
+├── venv/                           # Python environment (symlinks)
+└── SOP-VoiceFlow.html              # This document</code></pre>
+
+<h3>Required macOS permissions</h3>
+<table>
+  <tr><th>Permission</th><th>App to authorize</th><th>What for</th></tr>
+  <tr><td>Accessibility</td><td>VoiceFlow</td><td>Simulate Cmd+V (paste) and Cmd+C (replace mode)</td></tr>
+  <tr><td>Input Monitoring</td><td>VoiceFlow</td><td>Detect the <code>⌥</code> key globally</td></tr>
+  <tr><td>Microphone</td><td>VoiceFlow</td><td>Capture audio</td></tr>
+</table>
+
+<div class="callout">
+  Permissions are granted to <strong>VoiceFlow.app</strong>, not to <code>python3</code>.
+  The bundle ID <code>com.voiceflow.local</code> is signed ad-hoc at build time
+  so that TCC identifies it consistently across rebuilds.
+</div>
+
+<h3>Environment variables (in ~/.zshrc)</h3>
+<pre><code>export GEMINI_API_KEY=...
+export GOOGLE_API_KEY=...   # same value; the SDK accepts either</code></pre>
+
+<h2 id="shortcuts">3. Keyboard shortcuts</h2>
+<table>
+  <tr><th>Shortcut</th><th>Function</th></tr>
+  <tr><td><span class="key">Right Option</span> (hold)</td><td>Dictate / execute command</td></tr>
+  <tr><td><span class="key">Right Option</span> + <span class="key">⌘</span> (during recording)</td><td>REPLACE mode: transforms selected text</td></tr>
+  <tr><td>Release <span class="key">⌥</span></td><td>Process and execute</td></tr>
+</table>
+
+<h2 id="features">4. Features</h2>
+
+<h3>AI-enhanced dictation <span class="badge badge-ok">✓</span></h3>
+<ul>
+  <li><strong>Auto multi-language:</strong> ES, EN, mixed (Whisper detects)</li>
+  <li><strong>Auto-punctuation, accents, capitalization</strong> via Gemini</li>
+  <li><strong>Remove fillers:</strong> strips "uh", "um", "like", "you know"</li>
+  <li><strong>Backtrack:</strong> "Meet at 2... actually 3" → "Meet at 3"</li>
+  <li><strong>Lists:</strong> detects explicit markers ("point A", "first, second") and formats them</li>
+  <li><strong>Personal vocabulary:</strong> respects capitalization/spelling of terms in <code>dictionary.json</code></li>
+</ul>
+
+<h3>Local snippets <span class="badge badge-ok">✓</span></h3>
+<p>Exact match (case-insensitive, no punctuation). Skips Gemini → ~0 ms latency.</p>
+
+<h3>Agentic actions <span class="badge badge-ok">✓</span></h3>
+<p>See table in section 5.</p>
+
+<h3>Replace selected text <span class="badge badge-ok">✓</span></h3>
+<p>Select text → <span class="key">⌥</span> + <span class="key">⌘</span> → speak instruction → replaces.</p>
+
+<h2 id="tools">5. Agentic tools</h2>
+<table>
+  <tr><th>Tool</th><th>Confirms</th><th>Example phrase</th><th>What it does</th></tr>
+  <tr><td><code>paste_text</code></td><td>No</td><td>"hello how are you"</td><td>Pastes formatted text at cursor</td></tr>
+  <tr><td><code>open_app</code></td><td>No</td><td>"open Spotify"</td><td><code>open -a Spotify</code></td></tr>
+  <tr><td><code>close_app</code></td><td>No</td><td>"close Spotify"</td><td>AppleScript <code>quit</code></td></tr>
+  <tr><td><code>search_web</code></td><td>No</td><td>"search for paella recipes"</td><td>Opens Chrome with Google search</td></tr>
+  <tr><td><code>compose_email</code></td><td>✓ Yes</td><td>"send email to juan@x.com saying..."</td><td>Confirmation dialog → Gmail Web with draft</td></tr>
+  <tr><td><code>send_whatsapp</code></td><td>✓ Yes</td><td>"send WA to +34666... saying..."</td><td>Dialog → WhatsApp Desktop with pre-loaded message</td></tr>
+  <tr><td><code>create_calendar_event</code></td><td>✓ Yes</td><td>"create event tomorrow at 5..."</td><td>Dialog → Google Calendar with event</td></tr>
+  <tr><td><code>create_reminder</code></td><td>No</td><td>"remind me to call Pedro tomorrow at 9"</td><td>AppleScript to Reminders.app</td></tr>
+</table>
+
+<h2 id="custom">6. Customization</h2>
+
+<h3>dictionary.json — personal vocabulary</h3>
+<p>Edit and restart the app:</p>
+<pre><code>{
+  "vocabulary": ["YourBrand", "ProperNoun", "TechnicalJargon"],
+  "context": "Brief description of you and your work..."
+}</code></pre>
+<p><strong>Effects:</strong></p>
+<ul>
+  <li>Injected into Whisper's <code>initial_prompt</code> → improves transcription of those terms</li>
+  <li>Injected into Gemini's system instruction → enforces correct spelling</li>
+  <li>The context guides how Gemini picks tools (knows what you mean by your jargon)</li>
+</ul>
+
+<h3>snippets.json — voice shortcuts</h3>
+<pre><code>{
+  "snippets": {
+    "email signature": "Best,\\nYour Name",
+    "my intro": "Hi, I'm Y and I do X..."
+  }
+}</code></pre>
+<p>If you dictate <em>exactly</em> the key (no trailing punctuation, case-insensitive) → the value is pasted without going through Gemini.</p>
+
+<h2 id="operate">7. Operating the service</h2>
+<table>
+  <tr><th>Action</th><th>Command</th></tr>
+  <tr><td>Start</td><td><code>open ~/voice-flow/VoiceFlow.app</code></td></tr>
+  <tr><td>Stop</td><td><code>pkill -f voiceflow.py</code></td></tr>
+  <tr><td>Restart</td><td><code>pkill -f voiceflow.py; sleep 1; open ~/voice-flow/VoiceFlow.app</code></td></tr>
+  <tr><td>Tail logs</td><td><code>tail -f ~/voice-flow/voiceflow.log</code></td></tr>
+  <tr><td>Auto-start at login</td><td>System Settings → General → Login Items → <code>+</code> → VoiceFlow.app</td></tr>
+  <tr><td>Edit dictionary</td><td><code>open -e ~/voice-flow/dictionary.json</code></td></tr>
+  <tr><td>Edit snippets</td><td><code>open -e ~/voice-flow/snippets.json</code></td></tr>
+</table>
+
+<h2 id="trouble">8. Troubleshooting</h2>
+
+<table>
+  <tr><th>Symptom</th><th>Probable cause</th><th>Solution</th></tr>
+  <tr>
+    <td><code>This process is not trusted!</code> in err log</td>
+    <td>Missing Accessibility / Input Monitoring permission for VoiceFlow</td>
+    <td>System Settings → Privacy → enable VoiceFlow in both</td>
+  </tr>
+  <tr>
+    <td><code>⌥</code> key not detected</td>
+    <td>Permissions not applied to current binary</td>
+    <td><code>tccutil reset Accessibility com.voiceflow.local</code> and re-grant</td>
+  </tr>
+  <tr>
+    <td>"No tool call" or weird Gemini response</td>
+    <td>Quota exhausted or connectivity</td>
+    <td>Check <code>tail ~/voice-flow/voiceflow.err.log</code></td>
+  </tr>
+  <tr>
+    <td>Bad transcription</td>
+    <td><code>base</code> model too small</td>
+    <td>Change <code>MODEL_NAME = "small"</code> in voiceflow.py (more RAM and CPU)</td>
+  </tr>
+  <tr>
+    <td>Replace mode doesn't capture selection</td>
+    <td>App doesn't respond to standard Cmd+C</td>
+    <td>Manually verify that Cmd+C copies in that app</td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <strong>TCC limitation.</strong> If you rebuild <code>VoiceFlow.app</code>
+  or change its bundle ID, permissions are invalidated. You'll need to
+  re-add it manually or run <code>tccutil reset Accessibility com.voiceflow.local</code>.
+</div>
+
+<h2 id="roadmap">9. Roadmap</h2>
+<table>
+  <tr><th>Feature</th><th>Status</th></tr>
+  <tr><td>Push-to-talk + basic dictation</td><td><span class="badge badge-ok">Done</span></td></tr>
+  <tr><td>8 agentic tools + confirmation</td><td><span class="badge badge-ok">Done</span></td></tr>
+  <tr><td>Backtrack + remove fillers</td><td><span class="badge badge-ok">Done</span></td></tr>
+  <tr><td>Custom dictionary + snippets</td><td><span class="badge badge-ok">Done</span></td></tr>
+  <tr><td>Replace selected text (⌥+⌘)</td><td><span class="badge badge-ok">Done</span></td></tr>
+  <tr><td>Per-app styles (formal in Gmail, casual in WA)</td><td><span class="badge badge-todo">Pending</span></td></tr>
+  <tr><td>Custom tools (e.g., add note to Obsidian, row to Sheet)</td><td><span class="badge badge-todo">Pending</span></td></tr>
+  <tr><td>Menu bar indicator (rumps)</td><td><span class="badge badge-todo">Pending</span></td></tr>
+  <tr><td>Transcription history / repeat last</td><td><span class="badge badge-todo">Pending</span></td></tr>
+</table>
+
+<hr>
+<p class="meta" style="text-align:center;">
+  Built in one afternoon with Claude Code · MIT license ·
+  <a href="https://github.com/playingcamp/voice-flow" style="color:var(--green);">github.com/playingcamp/voice-flow</a>
+</p>
+
+</body>
+</html>

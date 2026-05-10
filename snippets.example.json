@@ -1,0 +1,9 @@
+{
+  "_comment": "Atajos de voz. Copia este archivo a snippets.json y edita. Si dictas exactamente la clave (case-insensitive, sin puntuación final), se pega el valor sin pasar por Gemini.",
+  "snippets": {
+    "firma mail": "Un saludo,\nTu Nombre",
+    "firma corta": "Tu Nombre",
+    "mi email": "tu@email.com",
+    "mi web": "https://tu-web.com"
+  }
+}

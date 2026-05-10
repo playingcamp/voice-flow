@@ -1,0 +1,32 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Datos personales del usuario (cada uno mantiene los suyos)
+dictionary.json
+snippets.json
+
+# Bundle compilado (regenerable con build_app.sh)
+VoiceFlow.app/
+
+# Backups y temporales
+*.disabled
+*.bak
+*.swp
+
+# IDE
+.vscode/
+.idea/
+
+# Modelo Whisper local (~/.cache/whisper)
+# No vive en el repo, pero por si acaso:
+*.pt

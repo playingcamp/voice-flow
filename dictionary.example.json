@@ -1,0 +1,11 @@
+{
+  "_comment": "Tu vocabulario personal. Copia este archivo a dictionary.json y edita. Mejora la transcripción de nombres propios y guía las respuestas de Gemini.",
+  "vocabulary": [
+    "Whisper",
+    "Gemini",
+    "VoiceFlow",
+    "Claude Code",
+    "Anthropic"
+  ],
+  "context": "Breve descripción de ti, tu trabajo y los términos técnicos que usas habitualmente. Esto se inyecta en el system prompt de Gemini para que entienda el contexto. Ejemplo: 'Soy desarrolladora, trabajo con TypeScript y React, vivo en Madrid'."
+}

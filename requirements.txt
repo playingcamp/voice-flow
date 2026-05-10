@@ -1,0 +1,7 @@
+openai-whisper>=20231117
+sounddevice>=0.4.6
+numpy>=1.24
+pynput>=1.7.6
+pyperclip>=1.8.2
+google-genai>=2.0
+pyobjc>=10.0

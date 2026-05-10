@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>SOP — VoiceFlow · Asistente de voz local con Whisper + Gemini</title>
+<style>
+  :root {
+    --green: #054129;
+    --orange: #F68840;
+    --bg: #fefdfb;
+    --ink: #1a1a1a;
+    --muted: #666;
+    --border: #e5e2dc;
+    --code-bg: #f6f4ef;
+  }
+  body {
+    font-family: 'Comfortaa', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.6;
+    max-width: 900px; margin: 0 auto; padding: 2.5rem 1.5rem;
+  }
+  h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; color: var(--green); }
+  h1 { font-size: 2.4rem; margin-bottom: .25rem; border-bottom: 3px solid var(--orange); padding-bottom: .5rem; }
+  h2 { font-size: 1.6rem; margin-top: 2.5rem; }
+  h3 { font-size: 1.2rem; margin-top: 1.5rem; color: var(--ink); }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+  .meta strong { color: var(--green); }
+  code, pre {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    background: var(--code-bg); border-radius: 4px;
+  }
+  code { padding: .15rem .4rem; font-size: .9em; }
+  pre { padding: 1rem; overflow-x: auto; border-left: 3px solid var(--orange); }
+  pre code { padding: 0; background: none; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { padding: .6rem .8rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--green); color: white; font-weight: 600; }
+  tr:nth-child(even) { background: #faf8f3; }
+  .toc { background: #faf8f3; padding: 1.2rem 1.5rem; border-radius: 8px; margin-bottom: 2rem; }
+  .toc h3 { margin-top: 0; }
+  .toc a { color: var(--green); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ul { margin: 0; padding-left: 1.2rem; }
+  .badge { display: inline-block; padding: .15rem .6rem; border-radius: 12px; font-size: .75rem; font-weight: 600; margin-left: .5rem; }
+  .badge-ok { background: #d4edda; color: #155724; }
+  .badge-todo { background: #fff3cd; color: #856404; }
+  .key { display: inline-block; background: white; border: 1px solid #ccc; border-radius: 4px; padding: .1rem .4rem; font-family: monospace; font-size: .85em; box-shadow: 0 1px 0 #ccc; }
+  .callout { background: #fff8ee; border-left: 4px solid var(--orange); padding: .8rem 1rem; margin: 1rem 0; border-radius: 4px; }
+  .callout-warn { background: #fff5f5; border-left-color: #dc3545; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+</style>
+</head>
+<body>
+
+<h1>SOP — VoiceFlow</h1>
+<div class="meta">
+  <strong>Autor:</strong> Carlos Alcalá &nbsp;·&nbsp;
+  <strong>Versión:</strong> 1.0 &nbsp;·&nbsp;
+  <strong>Fecha:</strong> 10 mayo 2026 &nbsp;·&nbsp;
+  <strong>Stack:</strong> Whisper local + Gemini 2.5 Flash + Python + AppleScript
+</div>
+
+<div class="callout">
+  <strong>Qué es VoiceFlow.</strong> Alternativa local y agentic a Wispr Flow.
+  Push-to-talk para macOS que (1) dicta con formato AI, (2) ejecuta acciones
+  (email, WhatsApp, calendar, etc.) y (3) reemplaza texto seleccionado con
+  transformaciones de voz. Construido en una tarde con Claude Code.
+  <strong>Coste:</strong> ~0€/mes (free tier de Gemini cubre uso personal).
+</div>
+
+<div class="toc">
+  <h3>Índice</h3>
+  <ul>
+    <li><a href="#arquitectura">1. Arquitectura</a></li>
+    <li><a href="#instalacion">2. Instalación y ficheros clave</a></li>
+    <li><a href="#atajos">3. Atajos de teclado</a></li>
+    <li><a href="#features">4. Features</a></li>
+    <li><a href="#tools">5. Tools agentic</a></li>
+    <li><a href="#custom">6. Personalización (dictionary + snippets)</a></li>
+    <li><a href="#operar">7. Operar el servicio</a></li>
+    <li><a href="#trouble">8. Troubleshooting</a></li>
+    <li><a href="#roadmap">9. Roadmap</a></li>
+  </ul>
+</div>
+
+<h2 id="arquitectura">1. Arquitectura</h2>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│  Tecla ⌥ derecha (push-to-talk)                             │
+│         ↓                                                    │
+│  sounddevice graba audio (mientras se mantiene pulsada)     │
+│         ↓ al soltar                                          │
+│  Whisper local "base"  ──> transcribe (ES/EN/mezcla auto)   │
+│         ↓ texto                                              │
+│  ┌─ Snippet exacto? ──> pega snippet, FIN                   │
+│  └─ NO                                                       │
+│         ↓                                                    │
+│  Gemini 2.5 Flash con function calling (8 tools)            │
+│         ↓                                                    │
+│  ┌─ paste_text         → Cmd+V en cursor                    │
+│  ├─ open_app/close_app → `open -a` / AppleScript quit       │
+│  ├─ search_web         → Chrome + google.com/search         │
+│  ├─ compose_email      → Gmail Web con borrador             │
+│  ├─ send_whatsapp      → whatsapp:// URL scheme             │
+│  ├─ create_calendar    → Google Calendar URL                │
+│  └─ create_reminder    → AppleScript a Reminders.app        │
+└─────────────────────────────────────────────────────────────┘
+Modo REPLACE: ⌥ + ⌘ → Cmd+C → selección + instrucción a Gemini → Cmd+V</code></pre>
+
+<h3>Componentes</h3>
+<table>
+  <tr><th>Componente</th><th>Rol</th><th>Coste</th></tr>
+  <tr><td>Whisper (modelo <code>base</code>, local)</td><td>Speech-to-text</td><td>Gratis · offline · ~74MB RAM</td></tr>
+  <tr><td>Gemini 2.5 Flash (API)</td><td>Routing + formato + transformaciones</td><td>Free tier: 1.500 req/día</td></tr>
+  <tr><td>pynput</td><td>Hotkey global + simulación teclado</td><td>Gratis</td></tr>
+  <tr><td>sounddevice</td><td>Captura de audio en RAM</td><td>Gratis</td></tr>
+  <tr><td>pyobjc (ApplicationServices)</td><td>Dispara diálogo TCC Accesibilidad</td><td>Gratis</td></tr>
+  <tr><td>VoiceFlow.app (AppleScript wrapper)</td><td>Auto-arranque + responsible process para TCC</td><td>Gratis</td></tr>
+</table>
+
+<h2 id="instalacion">2. Instalación y ficheros clave</h2>
+
+<h3>Ubicación</h3>
+<pre><code>~/voice-flow/
+├── VoiceFlow.app                   # Wrapper firmado para auto-arranque + TCC
+├── voiceflow.py                    # Script principal
+├── run.sh                          # Lanzador (carga env + venv)
+├── dictionary.json                 # Vocabulario personal
+├── snippets.json                   # Atajos de voz
+├── voiceflow.log / .err.log        # Logs
+├── venv/                           # Entorno Python (symlinks)
+└── SOP-VoiceFlow.html              # Este documento</code></pre>
+
+<h3>Permisos macOS requeridos</h3>
+<table>
+  <tr><th>Permiso</th><th>App a autorizar</th><th>Para qué</th></tr>
+  <tr><td>Accesibilidad</td><td>VoiceFlow</td><td>Simular Cmd+V (pegar) y Cmd+C (replace mode)</td></tr>
+  <tr><td>Monitorización de entrada</td><td>VoiceFlow</td><td>Detectar tecla ⌥ globalmente</td></tr>
+  <tr><td>Micrófono</td><td>VoiceFlow</td><td>Capturar audio</td></tr>
+</table>
+
+<div class="callout">
+  Los permisos se conceden a <strong>VoiceFlow.app</strong>, no a <code>python3</code>.
+  El bundle ID <code>com.carlos.voiceflow</code> se firma ad-hoc en
+  el momento del build para que TCC lo identifique consistentemente.
+</div>
+
+<h3>Variables de entorno (en ~/.zshrc)</h3>
+<pre><code>export GEMINI_API_KEY=...
+export GOOGLE_API_KEY=...   # mismo valor; SDK acepta cualquiera de los dos</code></pre>
+
+<h2 id="atajos">3. Atajos de teclado</h2>
+<table>
+  <tr><th>Atajo</th><th>Función</th></tr>
+  <tr><td><span class="key">⌥ derecha</span> (mantener)</td><td>Dictar / ejecutar comando</td></tr>
+  <tr><td><span class="key">⌥ derecha</span> + <span class="key">⌘</span> (durante grabación)</td><td>Modo REPLACE: transforma texto seleccionado</td></tr>
+  <tr><td>Soltar <span class="key">⌥</span></td><td>Procesar y ejecutar</td></tr>
+</table>
+
+<h2 id="features">4. Features</h2>
+
+<h3>Dictado AI-enhanced <span class="badge badge-ok">✓</span></h3>
+<ul>
+  <li><strong>Multi-idioma auto:</strong> ES, EN, mezcla (Whisper detecta)</li>
+  <li><strong>Auto-puntuación, acentos, mayúsculas</strong> vía Gemini</li>
+  <li><strong>Remove fillers:</strong> quita "eh", "este", "o sea", "um", "uh"</li>
+  <li><strong>Backtrack:</strong> "Quedamos a las 2... mejor a las 3" → "Quedamos a las 3"</li>
+  <li><strong>Listas:</strong> detecta marcadores explícitos ("punto A", "primero, segundo") y formatea</li>
+  <li><strong>Vocabulario personal:</strong> respeta mayúsculas/ortografía de términos en <code>dictionary.json</code></li>
+</ul>
+
+<h3>Snippets locales <span class="badge badge-ok">✓</span></h3>
+<p>Match exacto (case-insensitive, sin puntuación). Salta Gemini → latencia ~0ms.</p>
+
+<h3>Acciones agentic <span class="badge badge-ok">✓</span></h3>
+<p>Ver tabla en sección 5.</p>
+
+<h3>Replace selected text <span class="badge badge-ok">✓</span></h3>
+<p>Selecciona texto → <span class="key">⌥</span> + <span class="key">⌘</span> → habla instrucción → reemplaza.</p>
+
+<h2 id="tools">5. Tools agentic</h2>
+<table>
+  <tr><th>Tool</th><th>Confirma</th><th>Frase ejemplo</th><th>Qué hace</th></tr>
+  <tr><td><code>paste_text</code></td><td>No</td><td>"hola qué tal"</td><td>Pega texto formateado en cursor</td></tr>
+  <tr><td><code>open_app</code></td><td>No</td><td>"abre Spotify"</td><td><code>open -a Spotify</code></td></tr>
+  <tr><td><code>close_app</code></td><td>No</td><td>"cierra Spotify"</td><td>AppleScript <code>quit</code></td></tr>
+  <tr><td><code>search_web</code></td><td>No</td><td>"busca recetas de paella"</td><td>Abre Chrome con búsqueda Google</td></tr>
+  <tr><td><code>compose_email</code></td><td>✓ Sí</td><td>"manda email a juan@x.com diciendo..."</td><td>Diálogo de confirmación → Gmail Web con borrador</td></tr>
+  <tr><td><code>send_whatsapp</code></td><td>✓ Sí</td><td>"manda WA al +34666... diciendo..."</td><td>Diálogo → WhatsApp Desktop con mensaje pre-cargado</td></tr>
+  <tr><td><code>create_calendar_event</code></td><td>✓ Sí</td><td>"crea evento mañana a las 5..."</td><td>Diálogo → Google Calendar con evento</td></tr>
+  <tr><td><code>create_reminder</code></td><td>No</td><td>"recuérdame llamar a Pedro mañana a las 9"</td><td>AppleScript a Reminders.app</td></tr>
+</table>
+
+<h2 id="custom">6. Personalización</h2>
+
+<h3>dictionary.json — vocabulario personal</h3>
+<p>Editar y reiniciar la app:</p>
+<pre><code>{
+  "vocabulary": ["Playing Camp", "Kanbox", "Apify", ...],
+  "context": "El usuario es Carlos, fundador de Playing Camp..."
+}</code></pre>
+<p><strong>Efectos:</strong></p>
+<ul>
+  <li>Se inyecta en <code>initial_prompt</code> de Whisper → mejora transcripción de esos términos</li>
+  <li>Se inyecta en system instruction de Gemini → fuerza ortografía correcta</li>
+  <li>El contexto guía cómo Gemini elige tools (sabe a qué te refieres con "Kanbox")</li>
+</ul>
+
+<h3>snippets.json — atajos de voz</h3>
+<pre><code>{
+  "snippets": {
+    "firma mail": "Un abrazo,\\nCarlos Alcalá\\nPlaying Camp · playingcamp.com",
+    "intro playing camp": "Hola, soy Carlos de Playing Camp..."
+  }
+}</code></pre>
+<p>Si dictas <em>exactamente</em> la clave (sin puntuación final, mayúsculas ignoradas) → pega el valor sin pasar por Gemini.</p>
+
+<h2 id="operar">7. Operar el servicio</h2>
+<table>
+  <tr><th>Acción</th><th>Comando</th></tr>
+  <tr><td>Iniciar</td><td><code>open ~/voice-flow/VoiceFlow.app</code></td></tr>
+  <tr><td>Parar</td><td><code>pkill -f voiceflow.py</code></td></tr>
+  <tr><td>Reiniciar</td><td><code>pkill -f voiceflow.py; sleep 1; open ~/voice-flow/VoiceFlow.app</code></td></tr>
+  <tr><td>Ver logs en vivo</td><td><code>tail -f ~/voice-flow/voiceflow.log</code></td></tr>
+  <tr><td>Auto-arranque al login</td><td>Configuración → General → Login Items → <code>+</code> → VoiceFlow.app</td></tr>
+  <tr><td>Editar dictionary</td><td><code>open -e ~/voice-flow/dictionary.json</code></td></tr>
+  <tr><td>Editar snippets</td><td><code>open -e ~/voice-flow/snippets.json</code></td></tr>
+</table>
+
+<h2 id="trouble">8. Troubleshooting</h2>
+
+<table>
+  <tr><th>Síntoma</th><th>Causa probable</th><th>Solución</th></tr>
+  <tr>
+    <td><code>This process is not trusted!</code> en err log</td>
+    <td>Falta permiso de Accesibilidad / Input Monitoring para VoiceFlow</td>
+    <td>Configuración → Privacidad → activar VoiceFlow en ambos</td>
+  </tr>
+  <tr>
+    <td>Tecla ⌥ no detectada</td>
+    <td>Permisos no aplicados al binario actual</td>
+    <td><code>tccutil reset Accessibility com.carlos.voiceflow</code> y volver a conceder</td>
+  </tr>
+  <tr>
+    <td>"No tool call" o respuesta rara de Gemini</td>
+    <td>Quota exhausted o conectividad</td>
+    <td>Comprobar <code>tail ~/voice-flow/voiceflow.err.log</code></td>
+  </tr>
+  <tr>
+    <td>Transcripción mala</td>
+    <td>Modelo <code>base</code> demasiado pequeño</td>
+    <td>Cambiar <code>MODEL_NAME = "small"</code> en voiceflow.py (más RAM y CPU)</td>
+  </tr>
+  <tr>
+    <td>Modo replace no captura selección</td>
+    <td>App no responde a Cmd+C estándar</td>
+    <td>Verificar manualmente que Cmd+C copia en esa app</td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <strong>Limitación TCC.</strong> Si recompilas <code>VoiceFlow.app</code>
+  o le cambias el bundle ID, los permisos se invalidan. Hay que reañadirla
+  manualmente o ejecutar <code>tccutil reset Accessibility com.carlos.voiceflow</code>.
+</div>
+
+<h2 id="roadmap">9. Roadmap</h2>
+<table>
+  <tr><th>Feature</th><th>Estado</th></tr>
+  <tr><td>Push-to-talk + dictado básico</td><td><span class="badge badge-ok">Hecho</span></td></tr>
+  <tr><td>8 tools agentic + confirmación</td><td><span class="badge badge-ok">Hecho</span></td></tr>
+  <tr><td>Backtrack + remove fillers</td><td><span class="badge badge-ok">Hecho</span></td></tr>
+  <tr><td>Custom dictionary + snippets</td><td><span class="badge badge-ok">Hecho</span></td></tr>
+  <tr><td>Replace selected text (⌥+⌘)</td><td><span class="badge badge-ok">Hecho</span></td></tr>
+  <tr><td>Styles per app (formal en Gmail, casual en WA)</td><td><span class="badge badge-todo">Pendiente</span></td></tr>
+  <tr><td>Tools custom Playing Camp: añadir nota a Obsidian, fila a Sheet Kanbox</td><td><span class="badge badge-todo">Pendiente</span></td></tr>
+  <tr><td>Indicador en barra de menú (rumps)</td><td><span class="badge badge-todo">Pendiente</span></td></tr>
+  <tr><td>History de transcripciones / repetir última</td><td><span class="badge badge-todo">Pendiente</span></td></tr>
+</table>
+
+<hr>
+<p class="meta" style="text-align:center;">
+  Construido en una tarde con Claude Code · <strong>Playing Camp</strong> ·
+  <a href="mailto:hello@playingcamp.com" style="color:var(--green);">hello@playingcamp.com</a>
+</p>
+
+</body>
+</html>
